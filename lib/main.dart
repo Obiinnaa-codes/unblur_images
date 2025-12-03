@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:unblur_images/core/constants/supabase_constants.dart';
+//import 'package:unblur_images/core/constants/supabase_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unblur_images/features/auth/presentation/login_screen.dart';
@@ -9,8 +9,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url: SupabaseConstants.url,
-    anonKey: SupabaseConstants.anonKey,
+    url: 'https://ojxpcqcwuqrvdxozifit.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qeHBjcWN3dXFydmR4b3ppZml0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxODcxMTMsImV4cCI6MjA3OTc2MzExM30.8SHAOvEdpY4hJ3jA8wAOB2mz26pLd3gsNY5rcl1MHM4',
   );
 
   runApp(const ProviderScope(child: MyApp()));
