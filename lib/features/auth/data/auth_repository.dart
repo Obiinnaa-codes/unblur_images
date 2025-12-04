@@ -13,7 +13,7 @@ class AuthRepository {
   Future<AuthResponse> signInWithGoogle() async {
     /// Web Client ID that you registered with Google Cloud.
     const webClientId =
-        '258997862849-6h8bc7lhmed6msf9pkp86b40t0rj0592.apps.googleusercontent.com';
+        '258997862849-qn6spi2fqpialogu9kjt0k1a2cohit8s.apps.googleusercontent.com';
 
     /// iOS Client ID that you registered with Google Cloud.
     // const iosClientId = 'YOUR_IOS_CLIENT_ID';
