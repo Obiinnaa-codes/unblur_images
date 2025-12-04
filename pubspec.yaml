@@ -41,9 +41,8 @@ dependencies:
   riverpod_annotation: ^2.3.3
 
   # Backend & Auth
-  supabase_flutter: ^2.3.2
-  google_sign_in: ^6.1.6
-
+  supabase_flutter: ^2.10.3
+  google_sign_in: ^7.2.0
   # Monetization
   #superwallkit_flutter: ^2.4.5
 
