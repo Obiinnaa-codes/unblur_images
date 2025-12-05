@@ -16,12 +16,43 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedFeature = 'unblur'; // unblur, upscale, colorize
 
   Future<void> _pickImage() async {
-    final image = await ImagePickerUtils.pickImageFromGallery();
-    if (image != null) {
-      setState(() {
-        _selectedImage = image;
-      });
-    }
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final image = await ImagePickerUtils.pickImageFromGallery();
+                  if (image != null) {
+                    setState(() {
+                      _selectedImage = image;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final image = await ImagePickerUtils.pickImageFromCamera();
+                  if (image != null) {
+                    setState(() {
+                      _selectedImage = image;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _processImage() async {
