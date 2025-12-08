@@ -2,26 +2,60 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:unblur_images/core/utils/image_picker_utils.dart';
 import 'package:unblur_images/features/profile/presentation/profile_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:unblur_images/features/paywall/data/usage_repository.dart';
+import 'package:unblur_images/features/home/data/image_repository.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   File? _selectedImage;
   bool _isUploading = false;
   String _selectedFeature = 'unblur'; // unblur, upscale, colorize
 
   Future<void> _pickImage() async {
-    final image = await ImagePickerUtils.pickImageFromGallery();
-    if (image != null) {
-      setState(() {
-        _selectedImage = image;
-      });
-    }
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final image = await ImagePickerUtils.pickImageFromGallery();
+                  if (image != null) {
+                    setState(() {
+                      _selectedImage = image;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final image = await ImagePickerUtils.pickImageFromCamera();
+                  if (image != null) {
+                    setState(() {
+                      _selectedImage = image;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _processImage() async {
@@ -31,18 +65,57 @@ class _HomeScreenState extends State<HomeScreen> {
       _isUploading = true;
     });
 
+    // Check for credits
+    // We check if the user has free credits available.
+    // If hasFreeCredits returns false, it means the user has 0 credits left.
     try {
-      // Simulate processing
-      await Future.delayed(const Duration(seconds: 2));
+      final usageRepo = ref.read(usageRepositoryProvider);
+      final hasCredits = await usageRepo.hasFreeCredits();
 
-      if (!mounted) return;
+      if (!hasCredits) {
+        if (!mounted) return;
+
+        // Show dialog if user has 0 credits
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('No Credits Left'),
+            content: const Text(
+              'You have used your free credit for this week. Upgrade to Pro for unlimited access.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // TODO: Navigate to paywall
+                },
+                child: const Text('Upgrade'),
+              ),
+            ],
+          ),
+        );
+      }
+      // 1 upload user image to supabase bucket name images
+      final imageRepo = ref.read(imageRepositoryProvider);
+      final imageUrl = await imageRepo.uploadImage(_selectedImage!);
+
+      // 2 get url of the image to pass to the edge fuction
+      // (imageUrl is already the public URL)
+
+      // 3 call edge function (get the exact feature the user wants to do with the image)
+      // 4 get the result image from the edge function
+      final processedImageUrl = await imageRepo.processImage(
+        imageUrl,
+        _selectedFeature,
+      );
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Processing complete!')));
-
-      // Placeholder for the result image URL
-      const imageUrl = 'https://via.placeholder.com/300';
 
       // Navigate to Result Screen (or show dialog)
       if (mounted) {
@@ -52,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.network(imageUrl),
+                Image.network(processedImageUrl),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Close'),
