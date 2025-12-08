@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unblur_images/features/history/presentation/history_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -48,7 +49,9 @@ class ProfileScreen extends StatelessWidget {
             leading: const Icon(Icons.history),
             title: const Text('History'),
             onTap: () {
-              // TODO: Navigate to history
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const HistoryScreen()),
+              );
             },
           ),
           ListTile(
