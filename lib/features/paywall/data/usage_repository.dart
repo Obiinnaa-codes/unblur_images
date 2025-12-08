@@ -12,19 +12,24 @@ class UsageRepository {
 
   /// Check if user has credits OR is Pro
   Future<bool> hasFreeCredits() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return false;
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return false;
 
-    // 1. Fetch subscription (is_pro + credits)
-    final data = await _supabase
-        .from('subscriptions')
-        .select()
-        .eq('user_id', user.id)
-        .single();
+      // 1. Fetch subscription (is_pro + credits)
+      final data = await _supabase
+          .from('subscriptions')
+          .select()
+          .eq('user_id', user.id)
+          .single();
 
-    final int credits = data['credits'];
+      final int credits = data['credits'];
 
-    // 3. If user has credits
-    return credits != 0;
+      // 3. If user has credits
+      return credits != 0;
+    } catch (e) {
+      // In case of any error (network, etc), we fallback to true to not block the user
+      return true;
+    }
   }
 }
