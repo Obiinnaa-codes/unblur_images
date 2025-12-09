@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:gal/gal.dart';
 import 'package:flutter/material.dart';
 import 'package:unblur_images/core/utils/image_picker_utils.dart';
 import 'package:unblur_images/features/profile/presentation/profile_screen.dart';
@@ -117,8 +120,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Processing complete!')));
 
-      // Navigate to Result Screen (or show dialog)
       if (mounted) {
+        if (!mounted) return;
         showDialog(
           context: context,
           builder: (context) => Dialog(
@@ -126,9 +129,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Image.network(processedImageUrl),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Don't pop to allow multiple downloads if needed,
+                        // or pop if desired. Let's keep it open.
+                        _downloadImage(processedImageUrl);
+                      },
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -146,6 +164,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         setState(() {
           _isUploading = false;
         });
+      }
+    }
+  }
+
+  /// Downloads the processed image to the device's gallery.
+  ///
+  /// This function takes the URL of the processed image, downloads the bytes,
+  /// and then saves them to the gallery using [ImageGallerySaver].
+  Future<void> _downloadImage(String imageUrl) async {
+    try {
+      // 1. Download image bytes
+      final response = await http.get(Uri.parse(imageUrl));
+
+      // 2. Save to gallery
+      await Gal.putImageBytes(
+        Uint8List.fromList(response.bodyBytes),
+        name: "unblur_image_${DateTime.now().millisecondsSinceEpoch}",
+      );
+
+      // 3. Show appropriate message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image saved to gallery!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving image: $e')));
       }
     }
   }
