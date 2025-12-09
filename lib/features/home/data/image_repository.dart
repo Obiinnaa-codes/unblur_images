@@ -49,4 +49,63 @@ class ImageRepository {
       );
     }
   }
+
+  /// Fetches the history of images uploaded by the current user from the 'images' table.
+  Future<List<UserImage>> fetchUserHistory() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        return [];
+      }
+
+      final List<dynamic> data = await _supabase
+          .from('images')
+          .select('input_image, output_image, created_at, updated_at, feature')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      return data.map((json) => UserImage.fromJson(json)).toList();
+    } catch (e) {
+      // In a real app, you might want to log this error to a service like Sentry.
+      throw Exception('Error fetching user history: $e');
+    }
+  }
+}
+
+class UserImage {
+  final String id;
+  final String? inputImage;
+  final String? outputImage;
+  final String? feature;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+
+  UserImage({
+    required this.id,
+    this.inputImage,
+    this.outputImage,
+    this.feature,
+    required this.createdAt,
+    this.updatedAt,
+  });
+
+  factory UserImage.fromJson(Map<String, dynamic> json) {
+    return UserImage(
+      id: json['id']?.toString() ?? '',
+      inputImage: json['input_image'] as String?,
+      outputImage: json['output_image'] as String?,
+      feature: json['feature'] as String?,
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'])
+          : null,
+    );
+  }
+
+  String? get imageUrl {
+    final path = outputImage ?? inputImage;
+    if (path == null) return null;
+
+    return Supabase.instance.client.storage.from('images').getPublicUrl(path);
+  }
 }
