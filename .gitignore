@@ -164,3 +164,11 @@ app.*.symbols
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
 sentry.properties
+
+##key.properties
+**android/key.properties
+**android/app/unblur-release-key.jks
+**android/app/unblur-debug-key.jks
+
+##res
+**/android/app/src/main/res/
