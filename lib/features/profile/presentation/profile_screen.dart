@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unblur_images/features/history/presentation/history_screen.dart';
+import 'package:unblur_images/features/paywall/presentation/upgrade_to_pro_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -56,9 +57,13 @@ class ProfileScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.star),
-            title: const Text('Upgrade to Pro'),
+            title: const Text('Buy Credits'),
             onTap: () {
-              // TODO: Trigger paywall
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const UpgradeToProScreen(),
+                ),
+              );
             },
           ),
           const Divider(),
