@@ -6,6 +6,7 @@ import 'package:unblur_images/features/profile/presentation/profile_screen.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:unblur_images/features/paywall/data/usage_repository.dart';
 import 'package:unblur_images/features/home/data/image_repository.dart';
+import 'package:unblur_images/features/paywall/presentation/upgrade_to_pro_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -92,7 +93,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  // TODO: Navigate to paywall
+                  // Navigate to paywall
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const UpgradeToProScreen(),
+                    ),
+                  );
                 },
                 child: const Text('Upgrade'),
               ),
