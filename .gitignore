@@ -172,3 +172,7 @@ sentry.properties
 
 ##res
 **/android/app/src/main/res/
+
+##assets
+**/android/app/src/main/assets/
+assets/service-account-google-play.json
