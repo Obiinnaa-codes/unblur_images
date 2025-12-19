@@ -1,4 +1,4 @@
-package com.example.unblur_images
+package unblur.images
 
 import io.flutter.embedding.android.FlutterActivity
 
