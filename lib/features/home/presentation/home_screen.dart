@@ -19,6 +19,84 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   File? _selectedImage;
   bool _isUploading = false;
   String _selectedFeature = 'unblur'; // unblur, upscale, colorize
+  Map<String, dynamic>? _subscriptionStatus;
+
+  bool _isLoadingCredits = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch initial credits when screen loads
+    _fetchCredits();
+  }
+
+  /// Fetches the latest subscription status (credits, pro status) from Supabase
+  Future<void> _fetchCredits() async {
+    if (!mounted) return;
+    setState(() => _isLoadingCredits = true);
+
+    final usageRepo = ref.read(usageRepositoryProvider);
+    final status = await usageRepo.getSubscriptionStatus();
+
+    if (mounted) {
+      setState(() {
+        // If null, default to 0 credits and not pro (safe fallback)
+        _subscriptionStatus = status ?? {'credits': 0, 'is_pro': false};
+        _isLoadingCredits = false;
+      });
+    }
+  }
+
+  /// Builds the widget to display credit balance or 'Unlimited' status
+  Widget _buildCreditsDisplay() {
+    // If status is not yet loaded, show nothing or a small loader
+    if (_isLoadingCredits) {
+      return const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    // Safety check, though _fetchCredits guarantees non-null now
+    if (_subscriptionStatus == null) return const SizedBox.shrink();
+
+    final int credits = _subscriptionStatus!['credits'] ?? 0;
+    final bool isPro = _subscriptionStatus!['is_pro'] ?? false;
+
+    // Check if subscription is strictly valid (reusing logic pattern from repo)
+    bool isUnlimited = isPro;
+    if (isPro) {
+      final expiryStr = _subscriptionStatus!['subscription_expiry'] as String?;
+      if (expiryStr != null) {
+        final expiry = DateTime.tryParse(expiryStr);
+        // If expired, they are not unlimited anymore
+        if (expiry != null && expiry.isBefore(DateTime.now())) {
+          isUnlimited = false;
+        }
+      }
+    }
+
+    if (isUnlimited) {
+      return const Text(
+        'Unlimited',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.black, // Visible on light AppBar
+          fontSize: 16,
+        ),
+      );
+    }
+
+    return Text(
+      'Credits: $credits',
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+        color: Colors.black, // Visible on light AppBar
+      ),
+    );
+  }
 
   Future<void> _pickImage() async {
     showModalBottomSheet(
@@ -91,21 +169,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.pop(context);
                   // Navigate to paywall
-                  Navigator.push(
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const UpgradeToProScreen(),
                     ),
                   );
+                  // Refresh credits on return
+                  _fetchCredits();
                 },
                 child: const Text('Upgrade'),
               ),
             ],
           ),
         );
+        return; // Stop processing if no credits
       }
       // 1 upload user image to supabase bucket name images
       final imageRepo = ref.read(imageRepositoryProvider);
@@ -120,6 +201,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         imageUrl,
         _selectedFeature,
       );
+
+      // Refresh credits after usage
+      _fetchCredits();
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(
         context,
@@ -179,13 +265,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: const Text('AI Enhancer'),
         actions: [
+          // Display Credits Balance or 'Unlimited'
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(child: _buildCreditsDisplay()),
+          ),
           IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              // Refresh credits when returning from profile (possible purchase)
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
+              _fetchCredits();
             },
           ),
         ],

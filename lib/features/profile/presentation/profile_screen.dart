@@ -56,7 +56,7 @@ class ProfileScreen extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.star),
+            leading: const Icon(Icons.credit_card),
             title: const Text('Buy Credits'),
             onTap: () {
               Navigator.of(context).push(

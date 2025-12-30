@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unblur_images/features/auth/presentation/login_screen.dart';
 import 'package:unblur_images/features/home/presentation/home_screen.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:unblur_images/features/paywall/data/iap_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,8 +29,6 @@ void main() async {
     appRunner: () =>
         runApp(SentryWidget(child: const ProviderScope(child: MyApp()))),
   );
-  // TODO: Remove this line after sending the first sample event to sentry.
-  await Sentry.captureException(Exception('This is a sample exception.'));
 }
 
 class MyApp extends StatelessWidget {
@@ -49,17 +48,20 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatefulWidget {
+class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
+  ConsumerState<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<AuthGate> {
+class _AuthGateState extends ConsumerState<AuthGate> {
   @override
   void initState() {
     super.initState();
+    // Initialize RevenueCat
+    ref.read(iapRepositoryProvider).initialize();
+
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (mounted) {
         setState(() {});
