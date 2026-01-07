@@ -19,6 +19,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   File? _selectedImage;
   bool _isUploading = false;
   String _selectedFeature = 'unblur'; // unblur, upscale, colorize
+  Map<String, dynamic>? _subscriptionStatus;
+
+  bool _isLoadingCredits = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch initial credits when screen loads
+    _fetchCredits();
+  }
+
+  /// Fetches latest credits and subscription status using the unified status function.
+  Future<void> _fetchCredits() async {
+    if (!mounted) return;
+    setState(() => _isLoadingCredits = true);
+
+    // Call the simplified usage status function (one of our two allowed repository functions)
+    final status = await ref.read(usageRepositoryProvider).getUsageStatus();
+
+    if (mounted) {
+      setState(() {
+        _subscriptionStatus = status;
+        _isLoadingCredits = false;
+      });
+    }
+  }
+
+  /// Builds the widget to display credit balance or 'Pro' infinity icon.
+  Widget _buildCreditsDisplay() {
+    if (_isLoadingCredits) {
+      return const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    // Extract credit and subscription from the unified status map
+    final int credit = _subscriptionStatus?['credit'] ?? 0;
+    final bool isSubscribed = _subscriptionStatus?['isSubscribed'] ?? false;
+
+    // Use the fetched subscription status to determine UI
+    if (isSubscribed) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.all_inclusive, // Premium infinity icon for Pro status
+            color: Colors.deepPurple,
+            size: 22,
+          ),
+          SizedBox(width: 4),
+          Text(
+            'Pro',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Show credit count for non-subscribers
+    return Text(
+      'Credits: $credit',
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+        color: Colors.black,
+      ),
+    );
+  }
 
   Future<void> _pickImage() async {
     showModalBottomSheet(
@@ -77,35 +151,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!hasCredits) {
         if (!mounted) return;
 
-        // Show dialog if user has 0 credits
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('No Credits Left'),
+        // Use a SnackBar (proper toast) to inform the user they have no active subscription or balance.
+        // This is less intrusive than a dialog and follows the user's requirement.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: const Text(
-              'You have used your free credit for this week. Upgrade to Pro for unlimited access.',
+              'No active subscription or credits left. Upgrade to Pro for unlimited access.',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Navigate to paywall
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const UpgradeToProScreen(),
-                    ),
-                  );
-                },
-                child: const Text('Upgrade'),
-              ),
-            ],
+            action: SnackBarAction(
+              label: 'Upgrade',
+              onPressed: () async {
+                // Navigate to the paywall screen if they choose to upgrade
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UpgradeToProScreen(),
+                  ),
+                );
+                // Refresh credit/subscription state upon returning from the paywall
+                _fetchCredits();
+              },
+            ),
+            backgroundColor: Colors.orange[800],
+            duration: const Duration(seconds: 4),
           ),
         );
+        return; // Stop processing if no credits or subscription
       }
       // 1 upload user image to supabase bucket name images
       final imageRepo = ref.read(imageRepositoryProvider);
@@ -120,6 +191,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         imageUrl,
         _selectedFeature,
       );
+
+      // Refresh credits after usage, but only if the user is not on a Pro plan.
+      // Pro users have unlimited access, so there's no need to refresh their balance.
+      final bool isSubscribed = _subscriptionStatus?['isSubscribed'] ?? false;
+      if (!isSubscribed) {
+        _fetchCredits();
+      }
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(
         context,
@@ -177,15 +257,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Enhancer'),
+        title: const Text('Unblur'),
         actions: [
+          // Display Credits Balance or 'Unlimited'
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(child: _buildCreditsDisplay()),
+          ),
           IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              // Refresh credits when returning from profile (possible purchase)
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
+              _fetchCredits();
             },
           ),
         ],
