@@ -63,6 +63,15 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     ref.read(iapRepositoryProvider).initialize();
 
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final user = data.session?.user;
+      final userId = user?.id;
+      if (userId != null) {
+        // Extract user attributes from metadata (Google Sign-In fills these)
+        final name = user?.userMetadata?['full_name'] as String?;
+        final email = user?.email;
+
+        ref.read(iapRepositoryProvider).logIn(userId, name: name, email: email);
+      }
       if (mounted) {
         setState(() {});
       }

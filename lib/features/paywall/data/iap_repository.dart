@@ -14,20 +14,14 @@ final iapRepositoryProvider = Provider<IAPRepository>((ref) {
 class IAPRepository {
   final SupabaseClient _supabase;
 
-  /// Available offerings fetched from RevenueCat
-  Offerings? _offerings;
-  Offerings? get offerings => _offerings;
-
-  /// Current customer info
-  CustomerInfo? _customerInfo;
-  CustomerInfo? get customerInfo => _customerInfo;
-
   IAPRepository(this._supabase);
 
   /// Initialize RevenueCat
   Future<void> initialize() async {
     try {
       await Purchases.setLogLevel(LogLevel.debug);
+
+      final userId = _supabase.auth.currentUser?.id;
 
       late PurchasesConfiguration configuration;
       if (Platform.isAndroid) {
@@ -40,26 +34,25 @@ class IAPRepository {
         return; // Not supported
       }
 
-      await Purchases.configure(configuration);
-
-      // Listen to customer info updates
-      Purchases.addCustomerInfoUpdateListener((info) {
-        _customerInfo = info;
-        _handleCustomerInfoUpdate(info);
-      });
-
-      // Fetch initial info
-      _customerInfo = await Purchases.getCustomerInfo();
-      await loadOfferings();
-
-      // Identify user if logged in
-      final userId = _supabase.auth.currentUser?.id;
       if (userId != null) {
-        await Purchases.logIn(userId);
+        configuration.appUserID = userId;
       }
 
       if (kDebugMode) {
-        print('RevenueCat initialized successfully');
+        print(
+          'Configuring RevenueCat for ${Platform.isAndroid ? 'Android' : 'iOS'}...',
+        );
+      }
+
+      await Purchases.configure(configuration);
+
+      if (kDebugMode) {
+        print('RevenueCat configured successfully');
+      }
+
+      // If user is already logged in, identify them
+      if (userId != null) {
+        await logIn(userId);
       }
     } catch (e) {
       if (kDebugMode) {
@@ -68,31 +61,36 @@ class IAPRepository {
     }
   }
 
-  /// Load available offerings
-  Future<bool> loadOfferings() async {
+  /// Identify the user in RevenueCat and sync their attributes (name, email)
+  Future<void> logIn(String userId, {String? name, String? email}) async {
     try {
-      _offerings = await Purchases.getOfferings();
       if (kDebugMode) {
-        print(
-          'Offerings loaded: ${_offerings?.current?.availablePackages.length ?? 0} packages',
-        );
+        print('Logging in user to RevenueCat: $userId');
       }
-      return true;
+
+      final result = await Purchases.logIn(userId);
+
+      // Set user attributes
+      if (name != null) await Purchases.setDisplayName(name);
+      if (email != null) await Purchases.setEmail(email);
+
+      if (kDebugMode) {
+        print('User identified successfully. Created: ${result.created}');
+      }
     } catch (e) {
       if (kDebugMode) {
-        print('Error loading offerings: $e');
+        print('Error logging in user to RevenueCat: $e');
       }
-      return false;
     }
   }
 
   /// Purchase a package
   Future<bool> purchasePackage(Package package) async {
     try {
-      final purchaseResult = await Purchases.purchase(
-        PurchaseParams.package(package),
-      );
-      _customerInfo = purchaseResult.customerInfo;
+      await Purchases.purchase(PurchaseParams.package(package));
+      // Invalidate virtual currency cache after a successful purchase
+      // ignore: undefined_method
+      await Purchases.invalidateVirtualCurrenciesCache();
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -105,8 +103,7 @@ class IAPRepository {
   /// Restore purchases
   Future<void> restorePurchases() async {
     try {
-      final customerInfo = await Purchases.restorePurchases();
-      _customerInfo = customerInfo;
+      await Purchases.restorePurchases();
       if (kDebugMode) {
         print('Purchases restored');
       }
@@ -115,41 +112,6 @@ class IAPRepository {
         print('Error restoring purchases: $e');
       }
       rethrow;
-    }
-  }
-
-  /// Check if user has active pro entitlement
-  bool get isPro {
-    if (_customerInfo == null) return false;
-    return _customerInfo!.entitlements.all[IAPConfig.entitlementId]?.isActive ??
-        false;
-  }
-
-  /// Handle updates (e.g., sync with Supabase if needed)
-  Future<void> _handleCustomerInfoUpdate(CustomerInfo info) async {
-    // Ideally, use RevenueCat Webhooks to update Supabase.
-    // Here we can do a client-side sync if strictly necessary,
-    // but usually checking `isPro` or `entitlements` locally is enough for UI.
-
-    final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return;
-
-    final isPro =
-        info.entitlements.all[IAPConfig.entitlementId]?.isActive ?? false;
-
-    // Optional: Sync minimal status to database for other platforms/web
-    // This is "best effort" from client.
-    try {
-      await _supabase.from('subscriptions').upsert({
-        'user_id': userId,
-        'is_pro': isPro,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      // Ignore sync errors
-      if (kDebugMode) {
-        print('Error syncing status to Supabase: $e');
-      }
     }
   }
 }

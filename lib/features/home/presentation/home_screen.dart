@@ -30,26 +30,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _fetchCredits();
   }
 
-  /// Fetches the latest subscription status (credits, pro status) from Supabase
+  /// Fetches latest credits and subscription status using the unified status function.
   Future<void> _fetchCredits() async {
     if (!mounted) return;
     setState(() => _isLoadingCredits = true);
 
-    final usageRepo = ref.read(usageRepositoryProvider);
-    final status = await usageRepo.getSubscriptionStatus();
+    // Call the simplified usage status function (one of our two allowed repository functions)
+    final status = await ref.read(usageRepositoryProvider).getUsageStatus();
 
     if (mounted) {
       setState(() {
-        // If null, default to 0 credits and not pro (safe fallback)
-        _subscriptionStatus = status ?? {'credits': 0, 'is_pro': false};
+        _subscriptionStatus = status;
         _isLoadingCredits = false;
       });
     }
   }
 
-  /// Builds the widget to display credit balance or 'Unlimited' status
+  /// Builds the widget to display credit balance or 'Pro' infinity icon.
   Widget _buildCreditsDisplay() {
-    // If status is not yet loaded, show nothing or a small loader
     if (_isLoadingCredits) {
       return const SizedBox(
         width: 16,
@@ -58,42 +56,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    // Safety check, though _fetchCredits guarantees non-null now
-    if (_subscriptionStatus == null) return const SizedBox.shrink();
+    // Extract credit and subscription from the unified status map
+    final int credit = _subscriptionStatus?['credit'] ?? 0;
+    final bool isSubscribed = _subscriptionStatus?['isSubscribed'] ?? false;
 
-    final int credits = _subscriptionStatus!['credits'] ?? 0;
-    final bool isPro = _subscriptionStatus!['is_pro'] ?? false;
-
-    // Check if subscription is strictly valid (reusing logic pattern from repo)
-    bool isUnlimited = isPro;
-    if (isPro) {
-      final expiryStr = _subscriptionStatus!['subscription_expiry'] as String?;
-      if (expiryStr != null) {
-        final expiry = DateTime.tryParse(expiryStr);
-        // If expired, they are not unlimited anymore
-        if (expiry != null && expiry.isBefore(DateTime.now())) {
-          isUnlimited = false;
-        }
-      }
-    }
-
-    if (isUnlimited) {
-      return const Text(
-        'Unlimited',
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Colors.black, // Visible on light AppBar
-          fontSize: 16,
-        ),
+    // Use the fetched subscription status to determine UI
+    if (isSubscribed) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.all_inclusive, // Premium infinity icon for Pro status
+            color: Colors.deepPurple,
+            size: 22,
+          ),
+          SizedBox(width: 4),
+          Text(
+            'Pro',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+              fontSize: 16,
+            ),
+          ),
+        ],
       );
     }
 
+    // Show credit count for non-subscribers
     return Text(
-      'Credits: $credits',
+      'Credits: $credit',
       style: const TextStyle(
         fontWeight: FontWeight.bold,
         fontSize: 16,
-        color: Colors.black, // Visible on light AppBar
+        color: Colors.black,
       ),
     );
   }
@@ -155,38 +151,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!hasCredits) {
         if (!mounted) return;
 
-        // Show dialog if user has 0 credits
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('No Credits Left'),
+        // Use a SnackBar (proper toast) to inform the user they have no active subscription or balance.
+        // This is less intrusive than a dialog and follows the user's requirement.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: const Text(
-              'You have used your free credit for this week. Upgrade to Pro for unlimited access.',
+              'No active subscription or credits left. Upgrade to Pro for unlimited access.',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  // Navigate to paywall
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const UpgradeToProScreen(),
-                    ),
-                  );
-                  // Refresh credits on return
-                  _fetchCredits();
-                },
-                child: const Text('Upgrade'),
-              ),
-            ],
+            action: SnackBarAction(
+              label: 'Upgrade',
+              onPressed: () async {
+                // Navigate to the paywall screen if they choose to upgrade
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UpgradeToProScreen(),
+                  ),
+                );
+                // Refresh credit/subscription state upon returning from the paywall
+                _fetchCredits();
+              },
+            ),
+            backgroundColor: Colors.orange[800],
+            duration: const Duration(seconds: 4),
           ),
         );
-        return; // Stop processing if no credits
+        return; // Stop processing if no credits or subscription
       }
       // 1 upload user image to supabase bucket name images
       final imageRepo = ref.read(imageRepositoryProvider);
@@ -202,8 +192,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _selectedFeature,
       );
 
-      // Refresh credits after usage
-      _fetchCredits();
+      // Refresh credits after usage, but only if the user is not on a Pro plan.
+      // Pro users have unlimited access, so there's no need to refresh their balance.
+      final bool isSubscribed = _subscriptionStatus?['isSubscribed'] ?? false;
+      if (!isSubscribed) {
+        _fetchCredits();
+      }
 
       if (!mounted) return;
 
@@ -263,7 +257,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Enhancer'),
+        title: const Text('Unblur'),
         actions: [
           // Display Credits Balance or 'Unlimited'
           Padding(
